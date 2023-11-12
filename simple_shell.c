@@ -126,7 +126,7 @@ int main()
 		{
 			strcpy(cmd, "C:\\Windows\\System32");
 			strcpy(cmd, command);
-			execvp(cmd, parameters);
+			execvp(cmd, parameters, envp);
 		}
 		if (strcmp(command, "exit") == 0)
 		{
