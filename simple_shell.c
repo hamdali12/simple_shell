@@ -31,7 +31,7 @@
 void read_command(char cmd[], char *par[])
 {
 	char line[1024];
-	int count = 0, i = 0, j = 0;
+	int count = 0, i = 0, j;
 	char *array[100], *pch;
 
 	for (;;)
@@ -56,7 +56,7 @@ void read_command(char cmd[], char *par[])
 
 		strcpy(cmd, array[0]);
 
-		for (int j = 0; j < i; j++)
+		for (j = 0; j < i; j++)
 		{
 			par[j] = array[j];
 			par[i] = NULL;
