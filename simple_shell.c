@@ -1,137 +1,154 @@
-#include "stdio.h"
-#include "string.h"
-#include "stdlib.h"
-#include "sys/wait.h"
-#include "unistd.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+
+#define MAX_PATH_LEN 256
 
 /**
- * read_command - Reads a command from the standard input and parses it into
- *                a command and its parameters.
- *
- * @cmd: A character array to store the command.
- * @par: An array of character pointers to store the parameters.
- *
- * Description:
- * This function reads a command line from the standard input and parses it
- * into a command and its parameters. The command is stored in the provided
- * `cmd` array, and the parameters are stored in the `par` array.
- *
- * Parameters:
- *   - cmd: A character array with sufficient space to store the command.
- *   - par: An array of character pointers to store the parameters.
- *
- * Return:
- * This function does not return a value.
- *
- * Usage:
- *   char command[100];
- *   char *parameters[10];
- *   read_command(command, parameters);
+ * type_prompt - Displays a prompt for the user.
  */
-void read_command(char cmd[], char *par[])
+void type_prompt(void)
 {
-	char line[1024];
-	int count = 0, i = 0, j;
-	char *array[100], *pch;
+	printf("$ ");
+}
 
-	for (;;)
+/**
+ * read_command - Reads a command from the user.
+ * @command: Buffer to store the entered command.
+ */
+void read_command(char command[])
+{
+	fgets(command, 100, stdin);
+
+	size_t len = strlen(command);
+	if (len > 0 && command[len - 1] == '\n')
 	{
-		int c = fgetc(stdin);
-		line[count++] = (char) c;
-		if (c == '\n')
-		{
-			break;
-		}
-        if (count == 1)
-		{
-			return;
-		}
-		pch = strtok(line, "\n");
-
-		while (pch != NULL)
-		{
-			array[i++] = strdup(pch);
-			pch = strtok(NULL, "\n");
-		}
-
-		strcpy(cmd, array[0]);
-
-		for (j = 0; j < i; j++)
-		{
-			par[j] = array[j];
-			par[i] = NULL;
-		}
+		command[len - 1] = '\0';
 	}
 }
 
 /**
- * type_prompt - Displays a command prompt on the standard output.
- *
- * Description:
- * This function displays a command prompt on the standard output, typically
- * represented by a '#' symbol. It also includes a feature to clear the screen
- * on the first invocation to provide a clean starting environment.
- *
- * Usage:
- *   type_prompt();
- *
- * Example:
- *   After calling `type_prompt()`, the output might be:
- *   #
- *
- * Note:
- *   The function includes a feature to clear the screen on the first invocation,
- *   enhancing the user interface by providing a clean starting environment.
+ * is_command_exist - Checks if the command exists in the PATH.
+ * @command: The command to check.
+ * @path: The PATH environment variable.
+ * Return: 1 if the command exists, 0 otherwise.
  */
-void type_prompt()
+int is_command_exist(const char *command, const char *path)
 {
-	static int first_time = 1;
-	if (first_time)
+	char *path_copy = strdup(path);
+	char *token = strtok(path_copy, ":");
+
+	while (token != NULL)
 	{
-		const char* CLEAR_SCREEN_ANSI = "\033[1;1H\033[2J";
-		write(STDERR_FILENO, CLEAR_SCREEN_ANSI, 12);
-		first_time = 0;
+		char full_path[MAX_PATH_LEN];
+		snprintf(full_path, MAX_PATH_LEN, "%s/%s", token, command);
+
+		if (access(full_path, F_OK) == 0)
+		{
+			free(path_copy);
+			return (1);
+		}
+
+		token = strtok(NULL, ":");
 	}
 
-	printf("#");
+	free(path_copy);
+	return (0);
 }
 
 /**
- * main - Entry point of the custom shell program.
- *
- * Description:
- * This program emulates a simple shell. It continuously prompts the user for
- * commands, reads and parses the input, and executes the specified command.
- * The shell supports a basic set of commands and includes a feature to exit
- * when the user enters the "exit" command.
- * Note:
- *   The shell uses fork() and execvp() to execute commands in a child process.
- *   It also includes a basic implementation of a command prompt and input
- *   processing. The program will keep running until the user enters "exit".
+ * execute_command - Executes the specified command with arguments.
+ * @arguments: Array of command-line arguments.
+ * @path: The PATH environment variable.
  */
-int main() 
+void execute_command(char *arguments[], const char *path)
 {
-	char cmd[100], command[100], *parameters[20];
+	if (!is_command_exist(arguments[0], path))
+	{
+		printf("Command not found: %s\n", arguments[0]);
+		return;
+	}
 
-	char *envp[] = { (char *) "PATH=C:\\Windows\\System32", 0 };
-	while(1)
+	pid_t pid = fork();
+
+	if (pid == -1)
+	{
+		perror("fork");
+		exit(EXIT_FAILURE);
+	}
+	else if (pid == 0)
+	{
+		execvp(arguments[0], arguments);
+
+		perror("exec");
+		exit(EXIT_FAILURE);
+	}
+	else
+	{
+		wait(NULL);
+	}
+}
+
+/**
+ * print_environment - Prints the current environment variables.
+ */
+void print_environment(void)
+{
+	extern char **environ;
+	for (char **env = environ; *env != NULL; env++)
+	{
+		printf("%s\n", *env);
+	}
+}
+
+/**
+ * main - Entry point of the simple shell.
+ * Return: 0 on success.
+ */
+int main(void)
+{
+	char command[100];
+	char *arguments[20];
+	char *path = getenv("PATH");
+
+	while (1)
 	{
 		type_prompt();
-		read_command(command, parameters);
-		if (fork() != 0)
+		read_command(command);
+
+		if (feof(stdin))
 		{
-			wait(NULL);
-        }
-		else
-		{
-			strcpy(cmd, "C:\\Windows\\System32");
-			strcpy(cmd, command);
-			execvp(cmd, parameters, envp);
-		}
-		if (strcmp(command, "exit") == 0)
-		{
+			printf("\n");
 			break;
 		}
+
+		char *token = strtok(command, " ");
+		int i = 0;
+
+		while (token != NULL)
+		{
+			arguments[i++] = token;
+			token = strtok(NULL, " ");
+		}
+
+		arguments[i] = NULL;
+
+		if (strcmp(arguments[0], "exit") == 0)
+		{
+			printf("Exiting the shell\n");
+			break;
+		}
+		else if (strcmp(arguments[0], "env") == 0)
+		{
+			print_environment();
+		}
+		else
+			execute_command(arguments, path);
+		}
 	}
-	return 0;
+
+	return (0);
 }
